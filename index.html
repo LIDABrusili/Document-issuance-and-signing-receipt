@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>签收回执系统 · 状态追踪（A上传 / B扫码 / A查看状态）</title>
+    <title>签收回执系统 · PDF专属签署（A上传PDF / B扫码签署）</title>
     <!-- 引入二维码生成库 qrcode.js -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <!-- 引入PDF.js用于预览PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -18,7 +20,7 @@
             padding: 20px;
         }
         .app-container {
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
         }
         .header {
@@ -36,11 +38,11 @@
         }
         .dashboard {
             display: grid;
-            grid-template-columns: 1.2fr 0.8fr 1.2fr;
+            grid-template-columns: 1.2fr 1.8fr 1fr;
             gap: 24px;
             margin-bottom: 30px;
         }
-        @media (max-width: 1200px) {
+        @media (max-width: 1400px) {
             .dashboard {
                 grid-template-columns: 1fr;
             }
@@ -89,7 +91,7 @@
             font-size: 0.9rem;
             margin-top: 4px;
         }
-        /* A上传区域 */
+        /* PDF上传区域 */
         .upload-area {
             background: #f8fafd;
             border-radius: 24px;
@@ -114,6 +116,15 @@
             color: #2f5e9c;
             margin-bottom: 12px;
             display: block;
+        }
+        .pdf-hint {
+            background: #fff3cd;
+            border-radius: 40px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            color: #856404;
+            margin-bottom: 16px;
+            text-align: center;
         }
         .selected-file {
             background: #e0ebfc;
@@ -157,6 +168,21 @@
             background: #0a2540;
             color: white;
         }
+        .btn-download {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
         /* 二维码区域 */
         .qrcode-wrapper {
             background: white;
@@ -188,21 +214,32 @@
             font-size: 0.9rem;
             outline: none;
         }
-        .link-box button {
-            padding: 14px 28px;
+        /* B区域：PDF预览 + 签名 */
+        .pdf-preview-container {
+            background: #f8fafd;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .pdf-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .pdf-page-info {
             background: white;
-            border: 1px solid #0a2540;
+            padding: 8px 16px;
             border-radius: 40px;
-            font-weight: 600;
-            color: #0a2540;
-            cursor: pointer;
-            white-space: nowrap;
+            font-size: 0.9rem;
         }
-        .link-box button:hover {
-            background: #0a2540;
-            color: white;
+        #pdfCanvas {
+            width: 100%;
+            border-radius: 16px;
+            border: 1px solid #b9d1ef;
+            background: white;
         }
-        /* B签名区 */
         .file-info {
             background: #e7f0fd;
             border-radius: 20px;
@@ -221,15 +258,6 @@
             align-items: center;
             justify-content: center;
             font-size: 30px;
-        }
-        .file-details {
-            flex: 1;
-        }
-        .file-name {
-            font-weight: 700;
-            font-size: 1.1rem;
-            color: #0a2540;
-            margin-bottom: 4px;
         }
         .canvas-container {
             background: #f8fafd;
@@ -260,19 +288,9 @@
             font-weight: 500;
             cursor: pointer;
         }
-        .sign-actions button:hover {
-            background: #dae8ff;
-        }
-        .receipt-status {
-            background: #e3f0ec;
-            border-radius: 16px;
-            padding: 16px;
-            margin-top: 20px;
-            border-left: 4px solid #0a5e42;
-        }
         /* 状态列表 */
         .status-list {
-            max-height: 500px;
+            max-height: 600px;
             overflow-y: auto;
         }
         .status-item {
@@ -281,7 +299,6 @@
             padding: 20px;
             margin-bottom: 16px;
             border: 1px solid #e2e8f0;
-            transition: 0.1s;
         }
         .status-item.signed {
             background: #f0f9f0;
@@ -290,93 +307,92 @@
         .status-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
             margin-bottom: 12px;
-        }
-        .file-tag {
-            background: #0a2540;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 40px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 40px;
-            font-size: 0.8rem;
-            font-weight: 600;
         }
         .status-badge.pending {
             background: #fff3cd;
             color: #856404;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.8rem;
         }
         .status-badge.signed {
             background: #d4edda;
             color: #155724;
-        }
-        .file-meta {
-            font-size: 0.9rem;
-            color: #4a5568;
-            margin-bottom: 12px;
-        }
-        .signature-preview {
-            margin-top: 12px;
-            padding: 12px;
-            background: white;
-            border-radius: 12px;
-            border: 1px dashed #0a2540;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.8rem;
         }
         .signature-preview img {
             max-height: 50px;
             max-width: 100%;
         }
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #94a3b8;
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
         }
-        .warning-banner {
-            background: #fff3cd;
-            border: 1px solid #ffeeba;
-            color: #856404;
+        .modal-content {
+            background: white;
+            border-radius: 40px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .success-banner {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
             padding: 12px 20px;
             border-radius: 40px;
             margin-bottom: 20px;
-            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
 <div class="app-container" id="app">
     <div class="header">
-        <h1>✍️ 签收回执状态追踪系统</h1>
-        <div class="sub">用户A上传文件生成二维码 → 用户B扫码签名 → A实时查看签收状态</div>
+        <h1>📄 PDF专属签收回执系统</h1>
+        <div class="sub">用户A上传PDF → 生成专属二维码 → 用户B扫码预览PDF并签署回执</div>
     </div>
 
-    <!-- 403 提示 -->
-    <div class="warning-banner" v-if="showWarning">
-        ⚠️ 检测到当前为本地文件访问。已启用Hash模式，微信扫码可正常打开。如需生产使用，请部署到服务器。
+    <!-- 服务器部署成功提示 -->
+    <div class="success-banner" v-if="showDeploySuccess">
+        <span>✅</span> 服务器部署模式 · 每个二维码对应唯一PDF文件
     </div>
 
     <div class="dashboard">
-        <!-- 用户A区域：上传文件 & 生成二维码 -->
+        <!-- 用户A区域：上传PDF & 生成二维码 -->
         <div class="card">
             <div class="card-header">
                 <div class="avatar">A</div>
                 <div>
                     <div class="card-title">文件签发者 · 用户A</div>
-                    <div class="card-sub">上传文件，生成签收二维码</div>
+                    <div class="card-sub">上传PDF，生成专属签收二维码</div>
                 </div>
             </div>
             
             <div class="upload-area">
+                <div class="pdf-hint">
+                    <span>📌 仅支持PDF格式文件</span>
+                </div>
+                
                 <!-- 文件上传 -->
                 <div class="file-dropzone" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleFileDrop">
-                    <i>📂</i>
-                    <div style="font-weight:500; margin-bottom:6px;">点击或拖拽文件到此处</div>
-                    <div style="font-size:0.9rem; color:#64748b;">支持任何格式</div>
-                    <input type="file" ref="fileInput" style="display: none;" @change="handleFileSelect">
+                    <i>📑</i>
+                    <div style="font-weight:500; margin-bottom:6px;">点击或拖拽PDF文件到此</div>
+                    <div style="font-size:0.9rem; color:#64748b;">仅支持PDF格式</div>
+                    <input type="file" ref="fileInput" style="display: none;" accept=".pdf" @change="handleFileSelect">
                 </div>
 
                 <!-- 已选文件 -->
@@ -389,43 +405,49 @@
 
                 <!-- 生成二维码按钮 -->
                 <button class="btn-primary" @click="generateQRCode" :disabled="!currentFile">
-                    🔗 生成签收二维码
+                    🔗 生成专属签收二维码
                 </button>
 
-                <!-- 二维码展示 -->
+                <!-- 二维码展示 + 下载 -->
                 <div class="qrcode-wrapper" v-if="currentQRCode">
-                    <div style="font-weight:600; margin-bottom:12px;">📷 微信扫码签收</div>
+                    <div style="font-weight:600; margin-bottom:12px;">📷 专属签收二维码</div>
                     <div id="qrcode"></div>
+                    
+                    <!-- 二维码下载按钮 -->
+                    <button class="btn-download" @click="downloadQRCode">
+                        ⬇️ 下载二维码 (PNG)
+                    </button>
+                    
                     <div class="link-box">
                         <input type="text" :value="currentQRCode" readonly ref="qrLinkInput">
                         <button @click="copyQRLink">复制</button>
                     </div>
-                    <div style="margin-top:12px; color:#4b6382; font-size:0.9rem;">
-                        ⚡ 用户B扫码后即可手写签名
+                    <div style="margin-top:12px; color:#4b6382; font-size:0.9rem; background:#eef5fe; padding:8px; border-radius:40px;">
+                        ⚡ 用户B扫码后只能看到此PDF文件
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 用户B区域：扫码签名 -->
+        <!-- 用户B区域：PDF预览 + 签名 -->
         <div class="card">
             <div class="card-header">
                 <div class="avatar B">B</div>
                 <div>
                     <div class="card-title">签收人 · 用户B</div>
-                    <div class="card-sub">扫描二维码，手写签名确认</div>
+                    <div class="card-sub">扫码预览PDF，手写签名确认</div>
                 </div>
             </div>
 
             <div v-if="!activeReceiptFile">
                 <div style="padding: 40px 20px; text-align: center; background: #f8fafd; border-radius: 24px;">
                     <span style="font-size: 48px; display:block; margin-bottom:16px;">📱</span>
-                    <div style="font-weight:500; margin-bottom:12px;">等待扫码...</div>
-                    <div style="color:#64748b; margin-bottom:24px;">请使用微信扫描左侧二维码</div>
+                    <div style="font-weight:500; margin-bottom:12px;">请扫描二维码</div>
+                    <div style="color:#64748b; margin-bottom:24px;">每个二维码对应唯一的PDF文件</div>
                     
                     <!-- 演示用快速加载 -->
                     <button class="btn-secondary" @click="simulateScan" style="width:100%;">
-                        🎯 模拟扫码打开文件 (演示用)
+                        🎯 模拟扫码打开 (演示用)
                     </button>
                 </div>
             </div>
@@ -440,6 +462,17 @@
                             上传时间: {{ activeReceiptFile.uploadTime }}
                         </div>
                     </div>
+                </div>
+
+                <!-- PDF预览 -->
+                <div class="pdf-preview-container">
+                    <div style="font-weight:600; margin-bottom:12px;">📖 PDF预览</div>
+                    <div class="pdf-controls">
+                        <button class="btn-secondary" @click="prevPage" :disabled="pdfPage <= 1">上一页</button>
+                        <span class="pdf-page-info">第 {{ pdfPage }} / {{ pdfTotalPages }} 页</span>
+                        <button class="btn-secondary" @click="nextPage" :disabled="pdfPage >= pdfTotalPages">下一页</button>
+                    </div>
+                    <canvas id="pdfCanvas"></canvas>
                 </div>
 
                 <!-- 手写签名区 -->
@@ -465,8 +498,8 @@
                 </button>
 
                 <!-- 提交成功提示 -->
-                <div class="receipt-status" v-if="receiptSubmitted">
-                    ✅ 回执已提交！用户A将看到您的签名状态。
+                <div class="receipt-status" v-if="receiptSubmitted" style="background:#e3f0ec; border-radius:16px; padding:16px; margin-top:20px;">
+                    ✅ 回执已提交！用户A将看到您的签名。
                 </div>
             </div>
         </div>
@@ -477,41 +510,40 @@
                 <div class="avatar status">📊</div>
                 <div>
                     <div class="card-title">签收状态追踪 · 用户A</div>
-                    <div class="card-sub">实时查看哪些文件已被签收</div>
+                    <div class="card-sub">查看哪些PDF已被签收</div>
                 </div>
             </div>
 
             <!-- 文件状态列表 -->
             <div class="status-list">
-                <div v-if="fileRecords.length === 0" class="empty-state">
+                <div v-if="fileRecords.length === 0" class="empty-state" style="text-align:center; padding:60px 20px; color:#94a3b8;">
                     <span style="font-size: 48px; display:block; margin-bottom:16px;">📭</span>
                     <div>暂无文件记录</div>
-                    <div style="font-size:0.9rem; margin-top:8px;">左侧上传文件后，将自动生成记录</div>
+                    <div style="font-size:0.9rem; margin-top:8px;">左侧上传PDF后，将自动生成记录</div>
                 </div>
 
                 <div v-for="(record, index) in fileRecords" :key="index" 
                      class="status-item" :class="{ signed: record.status === 'signed' }">
                     
                     <div class="status-header">
-                        <span class="file-tag">文件 #{{ index + 1 }}</span>
+                        <span style="font-weight:600;">{{ record.fileName }}</span>
                         <span class="status-badge" :class="record.status">
                             {{ record.status === 'pending' ? '⏳ 待签收' : '✅ 已签收' }}
                         </span>
                     </div>
 
-                    <div class="file-meta">
-                        <div style="font-weight:600; margin-bottom:4px;">{{ record.fileName }}</div>
+                    <div class="file-meta" style="font-size:0.9rem; color:#4a5568;">
                         <div>上传时间: {{ record.uploadTime }}</div>
                         <div v-if="record.signTime" style="color:#0a5e42;">签收时间: {{ record.signTime }}</div>
                     </div>
 
                     <!-- 签名预览（已签收） -->
-                    <div v-if="record.status === 'signed' && record.signature" class="signature-preview">
+                    <div v-if="record.status === 'signed' && record.signature" class="signature-preview" style="margin-top:12px;">
                         <div style="font-size:0.9rem; color:#0a2540; margin-bottom:6px;">✍️ 手写签名：</div>
-                        <img :src="record.signature" alt="手写签名">
+                        <img :src="record.signature" style="max-height:50px;">
                     </div>
 
-                    <!-- 查看详情按钮（已签收） -->
+                    <!-- 查看详情按钮 -->
                     <button v-if="record.status === 'signed'" class="btn-secondary" 
                             style="width:100%; margin-top:12px;" @click="viewReceipt(record)">
                         📋 查看完整回执
@@ -551,10 +583,6 @@
                         <img :src="selectedReceipt?.signature" style="max-height:80px; max-width:100%;">
                     </div>
                 </div>
-                
-                <div style="background: #e3f0ec; border-radius: 16px; padding: 20px; text-align: center;">
-                    ✅ 该文件已被用户B签收确认
-                </div>
             </div>
         </div>
     </div>
@@ -563,20 +591,30 @@
 <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
 <script>
 (function() {
+    // 配置PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    
     new Vue({
         el: '#app',
         data: {
             // 当前上传的文件
             currentFile: null,
             currentQRCode: '',
+            currentFileData: null, // 存储文件数据用于预览
             
-            // 所有文件记录（用于状态追踪）
+            // 所有文件记录
             fileRecords: [],
             
             // B当前签收的文件
             activeReceiptFile: null,
+            activeFileData: null, // 当前预览的PDF数据
             signatureImage: null,
             receiptSubmitted: false,
+            
+            // PDF预览相关
+            pdfDoc: null,
+            pdfPage: 1,
+            pdfTotalPages: 0,
             
             // 画板相关
             canvas: null,
@@ -590,84 +628,94 @@
             showReceiptModal: false,
             selectedReceipt: null,
             
-            // 警告
-            showWarning: true,
-            
-            // 当前文件对应的token
+            showDeploySuccess: true,
             currentToken: ''
         },
         mounted() {
             this.initCanvas();
-            
-            // 检测URL参数 (hash模式)
-            this.checkHashParams();
-            
-            // 监听hash变化
-            window.addEventListener('hashchange', this.checkHashParams);
+            this.checkUrlParams();
+            window.addEventListener('popstate', this.checkUrlParams);
         },
         methods: {
-            // ========== A：文件上传 ==========
+            // ========== A：PDF上传 ==========
             triggerFileInput() {
                 this.$refs.fileInput.click();
             },
             handleFileSelect(e) {
                 const file = e.target.files[0];
-                if (file) {
+                if (file && file.type === 'application/pdf') {
                     this.currentFile = file;
                     this.currentQRCode = '';
                     this.clearQRCode();
+                    
+                    // 读取文件数据供后续使用
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.currentFileData = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    alert('请上传PDF格式文件');
                 }
             },
             handleFileDrop(e) {
                 const file = e.dataTransfer.files[0];
-                if (file) {
+                if (file && file.type === 'application/pdf') {
                     this.currentFile = file;
                     this.currentQRCode = '';
                     this.clearQRCode();
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.currentFileData = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    alert('请上传PDF格式文件');
                 }
             },
             removeCurrentFile() {
                 this.currentFile = null;
+                this.currentFileData = null;
                 this.$refs.fileInput.value = '';
                 this.currentQRCode = '';
                 this.clearQRCode();
             },
             
-            // ========== 二维码生成 ==========
+            // ========== 二维码生成与下载 ==========
             generateQRCode() {
-                if (!this.currentFile) return;
+                if (!this.currentFile || !this.currentFileData) return;
                 
-                // 生成唯一token
                 const token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
                 this.currentToken = token;
                 
-                // 使用hash模式避免403
-                const baseUrl = window.location.href.split('#')[0];
+                // 生成带token的链接
+                const baseUrl = window.location.origin + window.location.pathname;
                 const encodedFileName = encodeURIComponent(this.currentFile.name);
-                const hashLink = `${baseUrl}#/receipt/${token}/${encodedFileName}`;
+                const link = `${baseUrl}?pdf=${token}&file=${encodedFileName}`;
                 
-                this.currentQRCode = hashLink;
+                this.currentQRCode = link;
                 
-                // 添加到文件记录（待签收状态）
+                // 存储文件记录（包含PDF数据）
                 this.fileRecords.unshift({
                     fileName: this.currentFile.name,
                     uploadTime: new Date().toLocaleString(),
                     status: 'pending',
                     token: token,
                     signature: null,
-                    signTime: null
+                    signTime: null,
+                    pdfData: this.currentFileData // 存储PDF数据
                 });
                 
                 // 生成二维码
                 this.$nextTick(() => {
-                    this.generateQRCodeImage(hashLink);
+                    this.generateQRCodeImage(link);
                 });
             },
             
             generateQRCodeImage(link) {
                 const qrContainer = document.getElementById('qrcode');
                 if (!qrContainer) return;
-                
                 qrContainer.innerHTML = '';
                 
                 try {
@@ -686,9 +734,7 @@
             
             clearQRCode() {
                 const qrContainer = document.getElementById('qrcode');
-                if (qrContainer) {
-                    qrContainer.innerHTML = '';
-                }
+                if (qrContainer) qrContainer.innerHTML = '';
             },
             
             copyQRLink() {
@@ -696,57 +742,68 @@
                 if (input) {
                     input.select();
                     document.execCommand('copy');
-                    alert('链接已复制！');
+                    alert('链接已复制');
                 }
             },
             
-            // ========== B：扫描签名 ==========
-            checkHashParams() {
-                const hash = window.location.hash;
-                if (hash && hash.includes('/receipt/')) {
-                    // 格式: #/receipt/token/filename
-                    const parts = hash.split('/');
-                    const token = parts[2];
-                    const fileNamePart = parts[3];
+            downloadQRCode() {
+                const qrContainer = document.getElementById('qrcode');
+                const qrImg = qrContainer.querySelector('img');
+                if (qrImg) {
+                    const link = document.createElement('a');
+                    link.download = `qrcode-${this.currentFile?.name || 'pdf'}.png`;
+                    link.href = qrImg.src;
+                    link.click();
+                }
+            },
+            
+            // ========== B：扫码访问 ==========
+            checkUrlParams() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const pdfToken = urlParams.get('pdf');
+                const fileNameParam = urlParams.get('file');
+                
+                if (pdfToken && fileNameParam) {
+                    // 查找对应的文件记录
+                    const record = this.fileRecords.find(r => r.token === pdfToken);
                     
-                    if (fileNamePart) {
-                        try {
-                            const fileName = decodeURIComponent(fileNamePart);
-                            
-                            // 检查是否已存在记录
-                            const existingRecord = this.fileRecords.find(r => r.token === token);
-                            
-                            // 如果已签收，则不允许再次签收
-                            if (existingRecord && existingRecord.status === 'signed') {
-                                alert('该文件已被签收，不能重复签名');
-                                return;
-                            }
-                            
-                            // 设置激活的签收文件
-                            this.activeReceiptFile = {
-                                name: fileName,
-                                uploadTime: existingRecord ? existingRecord.uploadTime : new Date().toLocaleString(),
-                                token: token
-                            };
-                            
-                            this.receiptSubmitted = false;
-                            this.signatureImage = null;
-                            
-                            // 重置画板
-                            this.$nextTick(() => {
-                                this.clearSignature();
-                                this.initCanvas();
-                            });
-                        } catch (e) {
-                            console.error('解析文件名失败', e);
+                    if (record) {
+                        if (record.status === 'signed') {
+                            alert('该文件已被签收，不能重复签名');
+                            this.clearUrlParams();
+                            return;
                         }
+                        
+                        const fileName = decodeURIComponent(fileNameParam);
+                        
+                        this.activeReceiptFile = {
+                            name: fileName,
+                            uploadTime: record.uploadTime,
+                            token: pdfToken
+                        };
+                        
+                        // 加载PDF数据
+                        if (record.pdfData) {
+                            this.loadPDF(record.pdfData);
+                        }
+                        
+                        this.receiptSubmitted = false;
+                        this.signatureImage = null;
+                        
+                        this.$nextTick(() => {
+                            this.clearSignature();
+                        });
                     }
                 }
             },
             
-            // 模拟扫码（演示用）
+            clearUrlParams() {
+                const url = new URL(window.location);
+                url.search = '';
+                window.history.replaceState({}, '', url);
+            },
+            
             simulateScan() {
-                // 获取最新的待签收文件
                 const pendingFile = this.fileRecords.find(r => r.status === 'pending');
                 if (pendingFile) {
                     this.activeReceiptFile = {
@@ -755,19 +812,75 @@
                         token: pendingFile.token
                     };
                     
+                    if (pendingFile.pdfData) {
+                        this.loadPDF(pendingFile.pdfData);
+                    }
+                    
                     this.receiptSubmitted = false;
                     this.signatureImage = null;
                     
                     this.$nextTick(() => {
                         this.clearSignature();
-                        this.initCanvas();
                     });
                 } else {
-                    alert('没有待签收的文件，请先在左侧上传文件生成二维码');
+                    alert('没有待签收的文件');
                 }
             },
             
-            // ========== 画板相关 ==========
+            // ========== PDF预览 ==========
+            async loadPDF(pdfData) {
+                try {
+                    // 将dataURL转换为arrayBuffer
+                    const base64Data = pdfData.split(',')[1];
+                    const binaryData = atob(base64Data);
+                    const arrayBuffer = new ArrayBuffer(binaryData.length);
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    
+                    for (let i = 0; i < binaryData.length; i++) {
+                        uint8Array[i] = binaryData.charCodeAt(i);
+                    }
+                    
+                    this.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    this.pdfTotalPages = this.pdfDoc.numPages;
+                    this.pdfPage = 1;
+                    this.renderPage(1);
+                } catch (error) {
+                    console.error('PDF加载失败', error);
+                }
+            },
+            
+            async renderPage(pageNum) {
+                if (!this.pdfDoc) return;
+                
+                const page = await this.pdfDoc.getPage(pageNum);
+                const canvas = document.getElementById('pdfCanvas');
+                const context = canvas.getContext('2d');
+                
+                const viewport = page.getViewport({ scale: 1.5 });
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+            },
+            
+            prevPage() {
+                if (this.pdfPage > 1) {
+                    this.pdfPage--;
+                    this.renderPage(this.pdfPage);
+                }
+            },
+            
+            nextPage() {
+                if (this.pdfPage < this.pdfTotalPages) {
+                    this.pdfPage++;
+                    this.renderPage(this.pdfPage);
+                }
+            },
+            
+            // ========== 签名相关 ==========
             initCanvas() {
                 const canvas = document.getElementById('signatureCanvas');
                 if (!canvas) return;
@@ -809,7 +922,6 @@
                     this.draw(e);
                 });
                 this.canvas.addEventListener('touchend', this.stopDrawing);
-                this.canvas.addEventListener('touchcancel', this.stopDrawing);
             },
             
             startDrawing(e) {
@@ -838,7 +950,6 @@
                 if (!pos) return;
                 
                 const { x, y } = pos;
-                
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.lastX, this.lastY);
                 this.ctx.lineTo(x, y);
@@ -890,7 +1001,6 @@
             saveSignature() {
                 if (!this.ctx || !this.canvas) return;
                 
-                // 检测是否有笔迹
                 const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
                 const data = imageData.data;
                 let hasPixel = false;
@@ -907,68 +1017,4 @@
                     return;
                 }
                 
-                this.signatureImage = this.canvas.toDataURL('image/png');
-                this.hasDrawing = true;
-            },
-            
-            submitReceipt() {
-                if (!this.signatureImage || !this.activeReceiptFile) return;
-                
-                // 更新文件记录状态
-                const record = this.fileRecords.find(r => r.token === this.activeReceiptFile.token);
-                if (record) {
-                    record.status = 'signed';
-                    record.signature = this.signatureImage;
-                    record.signTime = new Date().toLocaleString();
-                }
-                
-                this.receiptSubmitted = true;
-            },
-            
-            // ========== A：查看状态 ==========
-            viewReceipt(record) {
-                this.selectedReceipt = record;
-                this.showReceiptModal = true;
-            }
-        },
-        watch: {
-            activeReceiptFile() {
-                this.receiptSubmitted = false;
-                this.signatureImage = null;
-                this.$nextTick(() => {
-                    if (this.canvas) {
-                        this.clearSignature();
-                    } else {
-                        this.initCanvas();
-                    }
-                });
-            }
-        }
-    });
-})();
-</script>
-
-<style>
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(5px);
-}
-.modal-content {
-    background: white;
-    border-radius: 40px;
-    padding: 32px;
-    max-width: 500px;
-    width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-}
-</style>
+                this.signatureImage = this.canvas.toDataURL('image
