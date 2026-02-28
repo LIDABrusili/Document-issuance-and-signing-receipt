@@ -1,1 +1,914 @@
-<h1>文件发布与签署回执</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>签收回执 · 微信扫码签收（修复403）</title>
+    <!-- 引入二维码生成库 qrcode.js -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: linear-gradient(145deg, #edf2fb 0%, #dde7f5 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .app-container {
+            max-width: 1400px;
+            width: 100%;
+        }
+        .warning-banner {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 16px 24px;
+            border-radius: 60px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .warning-banner i {
+            font-size: 24px;
+        }
+        .role-switcher {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .role-btn {
+            background: white;
+            border: none;
+            padding: 14px 36px;
+            border-radius: 60px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            box-shadow: 0 6px 14px rgba(0,20,50,0.08);
+            cursor: pointer;
+            transition: 0.2s;
+            border: 2px solid transparent;
+            color: #1f3a5f;
+        }
+        .role-btn.active {
+            border-color: #0a2540;
+            background: #0a2540;
+            color: white;
+            box-shadow: 0 12px 24px rgba(10,37,64,0.25);
+        }
+        .main-card {
+            background: rgba(255,255,255,0.75);
+            backdrop-filter: blur(10px);
+            border-radius: 48px;
+            padding: 28px;
+            box-shadow: 0 30px 50px rgba(0,20,50,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        .split-columns {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+        .column {
+            flex: 1 1 450px;
+            background: white;
+            border-radius: 36px;
+            padding: 32px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.02);
+            border: 1px solid rgba(10,37,64,0.08);
+            transition: all 0.2s;
+        }
+        .column-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 40px;
+            background: #0a2540;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            font-weight: 500;
+            box-shadow: 0 8px 12px rgba(10,37,64,0.15);
+        }
+        .column h2 {
+            margin: 0;
+            font-weight: 600;
+            color: #0a2540;
+        }
+        .column .sub {
+            color: #5271a0;
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+        .upload-panel {
+            background: #f5f9ff;
+            border-radius: 28px;
+            padding: 24px;
+            border: 1px solid #cbdaf0;
+        }
+        .file-dropzone {
+            border: 2px dashed #a0bcdb;
+            border-radius: 26px;
+            padding: 42px 20px;
+            text-align: center;
+            background: white;
+            cursor: pointer;
+            transition: 0.15s;
+            margin-bottom: 20px;
+        }
+        .file-dropzone:hover {
+            border-color: #0a2540;
+            background: #f0f7ff;
+        }
+        .file-dropzone i {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 12px;
+            color: #2f5e9c;
+        }
+        .selected-file-badge {
+            background: #e0ebfc;
+            padding: 14px 20px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 500;
+            margin: 16px 0;
+        }
+        .generate-link-btn {
+            background: #0a2540;
+            border: none;
+            color: white;
+            width: 100%;
+            padding: 18px;
+            border-radius: 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 10px 20px rgba(10,37,64,0.15);
+        }
+        .generate-link-btn:disabled {
+            background: #b0c6de;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .link-output {
+            margin-top: 28px;
+            background: #e2ebf6;
+            border-radius: 26px;
+            padding: 22px;
+        }
+        .link-label {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #0f2b4f;
+        }
+        .link-box {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .link-box input {
+            flex: 3;
+            min-width: 200px;
+            background: white;
+            border: 1px solid #b1c9e8;
+            border-radius: 60px;
+            padding: 16px 22px;
+            font-size: 0.9rem;
+            color: #001b3b;
+            outline: none;
+        }
+        .link-box button {
+            background: white;
+            border: 1px solid #0a2540;
+            border-radius: 60px;
+            padding: 0 28px;
+            font-weight: 600;
+            color: #0a2540;
+            cursor: pointer;
+            transition: 0.1s;
+            white-space: nowrap;
+        }
+        .link-box button:hover {
+            background: #0a2540;
+            color: white;
+        }
+        /* 二维码区域 */
+        .qrcode-container {
+            margin-top: 24px;
+            background: white;
+            border-radius: 28px;
+            padding: 24px;
+            text-align: center;
+            border: 2px dashed #9ab3d3;
+        }
+        .qrcode-title {
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #0f2b4f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        #qrcode img {
+            margin: 0 auto;
+            border-radius: 16px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .scan-hint {
+            background: #eef5fe;
+            border-radius: 40px;
+            padding: 12px;
+            margin-top: 16px;
+            color: #2d4b75;
+            font-size: 0.95rem;
+        }
+        /* B角色签名区 */
+        .sign-panel {
+            background: #f9fcff;
+            border-radius: 28px;
+            padding: 24px;
+            border: 1px solid #cbdaf0;
+        }
+        .file-info-card {
+            background: #e7f0fd;
+            border-radius: 22px;
+            padding: 20px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+        .file-icon {
+            font-size: 32px;
+            background: white;
+            width: 64px;
+            height: 64px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        .file-details {
+            flex: 1;
+        }
+        .file-name-big {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+            color: #0a2540;
+        }
+        .file-meta {
+            color: #4d688b;
+        }
+        .canvas-wrapper {
+            background: white;
+            border-radius: 26px;
+            padding: 20px;
+            border: 1px solid #cddef5;
+            margin: 24px 0 18px;
+        }
+        .sign-pad {
+            border: 1px solid #b9d1ef;
+            border-radius: 20px;
+            background: white;
+            width: 100%;
+            height: 170px;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        .sign-actions {
+            display: flex;
+            gap: 14px;
+            margin: 18px 0 10px;
+            flex-wrap: wrap;
+        }
+        .sign-actions button {
+            background: white;
+            border: 1px solid #b1c6e0;
+            border-radius: 40px;
+            padding: 12px 24px;
+            font-weight: 500;
+            color: #1f3a5f;
+            cursor: pointer;
+            flex: 1;
+            transition: 0.1s;
+        }
+        .sign-actions button:hover {
+            background: #dae8ff;
+            border-color: #2f5e9c;
+        }
+        .btn-primary {
+            background: #0f3d6b;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 18px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: 0.15s;
+        }
+        .btn-primary:disabled {
+            background: #b0c4dd;
+            cursor: not-allowed;
+        }
+        .receipt-confirmation {
+            background: #e3f0ec;
+            border-radius: 26px;
+            padding: 24px;
+            margin-top: 28px;
+            border-left: 6px solid #0a5e42;
+        }
+        .signature-preview-img {
+            max-height: 70px;
+            border: 2px dashed #4f7eb3;
+            border-radius: 16px;
+            padding: 12px;
+            background: white;
+            margin: 10px 0;
+        }
+        .footnote {
+            text-align: center;
+            margin-top: 28px;
+            color: #576f8b;
+            font-size: 0.9rem;
+        }
+        .deploy-hint {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 16px 24px;
+            border-radius: 60px;
+            margin-top: 20px;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container" id="app">
+    <!-- 403 警告提示 -->
+    <div class="warning-banner" v-if="show403Warning">
+        <i>⚠️</i>
+        <span>检测到可能遇到403错误。已改用<strong>Hash模式</strong>二维码，微信扫码将正常打开。如果仍然失败，请将页面部署到服务器上。</span>
+    </div>
+
+    <!-- 角色切换 -->
+    <div class="role-switcher">
+        <button class="role-btn" :class="{active: activeRole === 'A'}" @click="switchRole('A')" data-role="A">📤 用户A · 上传文件</button>
+        <button class="role-btn" :class="{active: activeRole === 'B'}" @click="switchRole('B')" data-role="B">📱 用户B · 微信扫码签收</button>
+    </div>
+
+    <!-- 主卡片 -->
+    <div class="main-card">
+        <div class="split-columns">
+            <!-- 左侧：用户A (上传区 + 二维码) -->
+            <div class="column" :style="{ opacity: activeRole === 'A' ? 1 : 0.6, background: activeRole === 'A' ? '#fff' : '#f9fafc' }">
+                <div class="column-header">
+                    <div class="avatar">A</div>
+                    <div>
+                        <h2>用户A · 文件签发者</h2>
+                        <div class="sub">上传文件，生成二维码供微信扫描</div>
+                    </div>
+                </div>
+                <div class="upload-panel">
+                    <!-- 文件拖拽区 -->
+                    <div class="file-dropzone" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleFileDrop">
+                        <i>📂</i>
+                        <div style="font-weight:500; margin-bottom:6px;">点击或拖拽文件到此</div>
+                        <div style="font-size:0.9rem; color:#466289;">任何格式 (PDF, 图片等)</div>
+                        <input type="file" ref="fileInput" style="display: none;" @change="handleFileSelect">
+                    </div>
+
+                    <!-- 已选文件展示 -->
+                    <div class="selected-file-badge" v-if="uploadedFile">
+                        <span style="display: flex; align-items: center; gap:8px;"><span>📄</span> {{ uploadedFile.name }}</span>
+                        <button @click="removeUploadedFile" style="background:none; border:none; font-size:20px; cursor:pointer;">✕</button>
+                    </div>
+
+                    <!-- 生成链接按钮 -->
+                    <button class="generate-link-btn" @click="generateShareLink" :disabled="!uploadedFile">🔗 生成签收二维码</button>
+
+                    <!-- 生成的链接 + 二维码展示区 -->
+                    <div class="link-output" v-if="shareLink">
+                        <div class="link-label">✅ 签收链接 (可复制发给B)</div>
+                        <div class="link-box">
+                            <input type="text" :value="shareLink" readonly ref="shareLinkInput">
+                            <button @click="copyShareLink">复制</button>
+                        </div>
+                        
+                        <!-- 二维码 - 使用hash模式避免403 -->
+                        <div class="qrcode-container">
+                            <div class="qrcode-title">
+                                <span>📷 微信扫码签收 (Hash模式)</span>
+                            </div>
+                            <div id="qrcode"></div>
+                            <div class="scan-hint">
+                                ⚡ 用户B使用微信扫一扫，即可打开签收页面<br>
+                                <span style="font-size:0.8rem; color:#666;">(使用hash路由，避免403)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：用户B (签收区) 模拟微信扫码打开后的界面 -->
+            <div class="column" :style="{ opacity: activeRole === 'B' ? 1 : 0.6, background: activeRole === 'B' ? '#fff' : '#f9fafc' }">
+                <div class="column-header">
+                    <div class="avatar">B</div>
+                    <div>
+                        <h2>用户B · 微信签收人</h2>
+                        <div class="sub">扫描二维码，手写签名确认回执</div>
+                    </div>
+                </div>
+                <div class="sign-panel">
+                    <!-- 如果没有激活的签收文件，显示扫码提示 -->
+                    <div v-if="!activeReceiptFile">
+                        <div style="padding: 30px 20px; text-align: center; background: #f2f7ff; border-radius: 28px; color: #4b6382;">
+                            <span style="font-size: 48px; display:block; margin-bottom:16px;">📱</span>
+                            <div style="font-weight:500; margin-bottom:12px;">请使用微信扫码</div>
+                            <div style="font-size:0.9rem;">扫描左侧二维码即可加载文件签收</div>
+                            
+                            <!-- 自动检测URL参数并加载 -->
+                            <div v-if="urlFileName" class="toast-msg" style="margin-top:20px; background:#0a5e42;">
+                                ✅ 检测到链接参数，自动加载文件: {{ urlFileName }}
+                            </div>
+                            
+                            <!-- 模拟手动加载（方便演示） -->
+                            <div style="margin-top:24px; padding-top:16px; border-top:1px dashed #baceec;">
+                                <div style="font-size:0.9rem; margin-bottom:12px;">🔧 演示快速加载：</div>
+                                <button @click="simulateScanFromQrcode" style="background:#0a2540; color:white; border:none; border-radius:40px; padding:12px 28px; cursor:pointer; margin-right:8px;">
+                                    模拟扫码打开文件
+                                </button>
+                                <button @click="checkHashParams" style="background:#6c757d; color:white; border:none; border-radius:40px; padding:12px 28px; cursor:pointer;">
+                                    检测URL参数
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 有激活文件：显示签收回执界面 -->
+                    <div v-else>
+                        <div class="file-info-card">
+                            <div class="file-icon">📄</div>
+                            <div class="file-details">
+                                <div class="file-name-big">{{ activeReceiptFile.name }}</div>
+                                <div class="file-meta">上传者：用户A · {{ activeReceiptFile.uploadTime || '刚刚' }}</div>
+                            </div>
+                        </div>
+
+                        <!-- 手写签名区 -->
+                        <div style="font-weight:600; margin-bottom:14px;">✍️ 请在下方手写签名确认收件</div>
+                        <div class="canvas-wrapper">
+                            <canvas id="signatureCanvasB" class="sign-pad" width="400" height="170"></canvas>
+                            <div class="sign-actions">
+                                <button @click="clearSignatureB">🧽 清空</button>
+                                <button @click="saveSignatureB">📎 确认签名</button>
+                            </div>
+                            <!-- 签名预览 -->
+                            <div v-if="signatureB" style="margin-top:12px; display:flex; align-items:center; gap:10px;">
+                                <span>✅ 已签名:</span>
+                                <img :src="signatureB" style="max-height:45px; border:1px solid #c7daf5; border-radius:10px; background:white; padding:6px;">
+                            </div>
+                        </div>
+
+                        <!-- 提交回执按钮 -->
+                        <button class="btn-primary" @click="submitReceipt" :disabled="!signatureB">📬 提交手写签收回执</button>
+
+                        <!-- 回执完成提示 -->
+                        <div class="receipt-confirmation" v-if="receiptSubmitted">
+                            <span style="font-size:22px; margin-right:12px;">✅</span> 
+                            <strong>回执已签收！</strong> 手写签名已附着在文件回执上。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footnote">
+            ⚡ 工作流：A上传文件 → 生成二维码 → B微信扫码 → 手写签名 → 提交回执
+        </div>
+        
+        <!-- 部署提示 -->
+        <div class="deploy-hint" v-if="showDeployHint">
+            <strong>🌐 部署到服务器可彻底解决403：</strong> 将本页面上传到任何静态托管服务（GitHub Pages、Vercel、Netlify等），即可正常使用。目前使用hash模式已可临时解决。
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+<script>
+(function() {
+    new Vue({
+        el: '#app',
+        data: {
+            activeRole: 'A',
+            // A的数据
+            uploadedFile: null,
+            shareLink: '',
+            qrCodeGenerated: false,
+            // B的数据
+            activeReceiptFile: null,
+            signatureB: null,
+            receiptSubmitted: false,
+            // canvas 相关
+            canvasB: null,
+            ctxB: null,
+            drawingB: false,
+            lastXB: 0,
+            lastYB: 0,
+            hasDrawingB: false,
+            // 用于保存当前二维码对应的文件token
+            currentFileToken: null,
+            // 从URL检测到的文件名
+            urlFileName: '',
+            // 控制警告显示
+            show403Warning: true,
+            showDeployHint: true
+        },
+        mounted() {
+            // 初始化B画板
+            this.$nextTick(() => {
+                this.initCanvasB();
+            });
+            
+            // 检测URL参数 (hash模式)
+            this.checkHashParams();
+            
+            // 监听hash变化
+            window.addEventListener('hashchange', this.checkHashParams);
+        },
+        methods: {
+            // ========== 角色切换视觉效果 ==========
+            switchRole(role) {
+                this.activeRole = role;
+            },
+
+            // ========== A 上传文件逻辑 ==========
+            triggerFileInput() {
+                this.$refs.fileInput.click();
+            },
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.uploadedFile = file;
+                    this.shareLink = '';
+                    this.qrCodeGenerated = false;
+                    // 清除之前的二维码
+                    this.clearQrCode();
+                }
+            },
+            handleFileDrop(e) {
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                    this.uploadedFile = file;
+                    this.shareLink = '';
+                    this.qrCodeGenerated = false;
+                    this.clearQrCode();
+                }
+            },
+            removeUploadedFile() {
+                this.uploadedFile = null;
+                this.$refs.fileInput.value = '';
+                this.shareLink = '';
+                this.qrCodeGenerated = false;
+                this.clearQrCode();
+            },
+            
+            // 清除二维码
+            clearQrCode() {
+                const qrContainer = document.getElementById('qrcode');
+                if (qrContainer) {
+                    qrContainer.innerHTML = '';
+                }
+            },
+
+            generateShareLink() {
+                if (!this.uploadedFile) return;
+                
+                // 生成唯一token
+                const token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+                this.currentFileToken = token;
+                
+                // 使用hash模式避免403 (file协议下不会触发服务器请求)
+                const baseUrl = window.location.href.split('#')[0]; // 去掉已有hash
+                // 构造hash格式链接: #/receipt/token/文件名
+                const encodedFileName = encodeURIComponent(this.uploadedFile.name);
+                const hashLink = `${baseUrl}#/receipt/${token}/${encodedFileName}`;
+                
+                this.shareLink = hashLink;
+
+                // 生成二维码
+                this.$nextTick(() => {
+                    this.generateQrCode(hashLink);
+                });
+                
+                // 自动在B端模拟一下（方便测试）
+                this.urlFileName = this.uploadedFile.name;
+            },
+
+            generateQrCode(link) {
+                // 清空旧的二维码
+                const qrContainer = document.getElementById('qrcode');
+                if (!qrContainer) return;
+                
+                qrContainer.innerHTML = '';
+                
+                // 使用QRCode.js生成
+                try {
+                    new QRCode(qrContainer, {
+                        text: link,
+                        width: 200,
+                        height: 200,
+                        colorDark: '#0a2540',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                    this.qrCodeGenerated = true;
+                } catch (e) {
+                    console.error('二维码生成失败', e);
+                }
+            },
+
+            copyShareLink() {
+                const input = this.$refs.shareLinkInput;
+                if (input) {
+                    input.select();
+                    document.execCommand('copy');
+                    alert('链接已复制！用户B可以直接访问，或扫描二维码');
+                }
+            },
+
+            // ========== B 检测URL参数 (hash模式) ==========
+            checkHashParams() {
+                const hash = window.location.hash;
+                if (hash && hash.includes('/receipt/')) {
+                    // 格式: #/receipt/token/filename
+                    const parts = hash.split('/');
+                    // 找到filename部分（最后一部分）
+                    const fileNamePart = parts[parts.length - 1];
+                    if (fileNamePart) {
+                        try {
+                            const fileName = decodeURIComponent(fileNamePart);
+                            this.urlFileName = fileName;
+                            
+                            // 自动加载文件
+                            this.activeReceiptFile = {
+                                name: fileName,
+                                uploadTime: new Date().toLocaleString()
+                            };
+                            this.receiptSubmitted = false;
+                            this.signatureB = null;
+                            
+                            // 重置画板
+                            this.$nextTick(() => {
+                                this.clearSignatureB();
+                                this.initCanvasB();
+                            });
+                        } catch (e) {
+                            console.error('解析文件名失败', e);
+                        }
+                    }
+                } else {
+                    // 尝试从传统query参数解析（兼容）
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const fileParam = urlParams.get('file');
+                    if (fileParam) {
+                        this.urlFileName = decodeURIComponent(fileParam);
+                    }
+                }
+            },
+
+            // ========== B 模拟扫码逻辑 ==========
+            simulateScanFromQrcode() {
+                // 模拟微信扫码后打开链接
+                let fileName = '收到的文件.pdf';
+                let uploadTime = new Date().toLocaleString();
+                
+                if (this.uploadedFile) {
+                    fileName = this.uploadedFile.name;
+                } else if (this.urlFileName) {
+                    fileName = this.urlFileName;
+                } else if (this.shareLink && this.shareLink.includes('/receipt/')) {
+                    try {
+                        const parts = this.shareLink.split('/');
+                        const namePart = parts[parts.length - 1];
+                        if (namePart) {
+                            fileName = decodeURIComponent(namePart);
+                        }
+                    } catch (e) {}
+                }
+                
+                // 设置激活的回执文件
+                this.activeReceiptFile = {
+                    name: fileName,
+                    uploadTime: uploadTime
+                };
+                this.receiptSubmitted = false;
+                this.signatureB = null;
+                
+                // 重置画板
+                this.$nextTick(() => {
+                    this.clearSignatureB();
+                    this.initCanvasB();
+                });
+            },
+
+            // ========== B 签名逻辑 ==========
+            initCanvasB() {
+                const canvas = document.getElementById('signatureCanvasB');
+                if (!canvas) return;
+                
+                this.canvasB = canvas;
+                this.ctxB = canvas.getContext('2d');
+                this.ctxB.lineWidth = 2.5;
+                this.ctxB.strokeStyle = '#0a2540';
+                this.ctxB.lineCap = 'round';
+                this.ctxB.lineJoin = 'round';
+                this.bindDrawingB();
+                this.drawPlaceholderB();
+            },
+
+            drawPlaceholderB() {
+                if (!this.hasDrawingB && !this.signatureB && this.ctxB) {
+                    this.ctxB.font = '14px sans-serif';
+                    this.ctxB.fillStyle = '#b7cbe3';
+                    this.ctxB.textAlign = 'center';
+                    this.ctxB.fillText('在此区域内手写签名', this.canvasB.width/2, this.canvasB.height/2);
+                }
+            },
+
+            bindDrawingB() {
+                if (!this.canvasB) return;
+                const canvas = this.canvasB;
+                
+                canvas.addEventListener('mousedown', this.startDrawingB);
+                canvas.addEventListener('mousemove', this.drawB);
+                canvas.addEventListener('mouseup', this.stopDrawingB);
+                canvas.addEventListener('mouseleave', this.stopDrawingB);
+                
+                canvas.addEventListener('touchstart', (e) => { 
+                    e.preventDefault(); 
+                    this.startDrawingB(e);
+                });
+                canvas.addEventListener('touchmove', (e) => { 
+                    e.preventDefault(); 
+                    this.drawB(e);
+                });
+                canvas.addEventListener('touchend', this.stopDrawingB);
+                canvas.addEventListener('touchcancel', this.stopDrawingB);
+            },
+
+            startDrawingB(e) {
+                if (!this.ctxB) return;
+                this.drawingB = true;
+                const pos = this.getCoordinatesB(e);
+                if (pos) {
+                    this.lastXB = pos.x;
+                    this.lastYB = pos.y;
+                }
+                // 清除占位符
+                if (!this.hasDrawingB && !this.signatureB) {
+                    this.ctxB.clearRect(0, 0, this.canvasB.width, this.canvasB.height);
+                    this.hasDrawingB = true;
+                }
+                this.ctxB.beginPath();
+                this.ctxB.moveTo(this.lastXB, this.lastYB);
+            },
+
+            drawB(e) {
+                if (!this.drawingB || !this.ctxB) return;
+                e.preventDefault();
+                const pos = this.getCoordinatesB(e);
+                if (!pos) return;
+                
+                const { x, y } = pos;
+                this.ctxB.beginPath();
+                this.ctxB.moveTo(this.lastXB, this.lastYB);
+                this.ctxB.lineTo(x, y);
+                this.ctxB.stroke();
+                this.lastXB = x;
+                this.lastYB = y;
+                this.hasDrawingB = true;
+            },
+
+            stopDrawingB() {
+                this.drawingB = false;
+            },
+
+            getCoordinatesB(event) {
+                if (!this.canvasB) return null;
+                
+                let clientX, clientY;
+                if (event.touches) {
+                    if (event.touches.length === 0) return null;
+                    clientX = event.touches[0].clientX;
+                    clientY = event.touches[0].clientY;
+                } else {
+                    clientX = event.clientX;
+                    clientY = event.clientY;
+                }
+                
+                const rect = this.canvasB.getBoundingClientRect();
+                const scaleX = this.canvasB.width / rect.width;
+                const scaleY = this.canvasB.height / rect.height;
+                
+                let x = (clientX - rect.left) * scaleX;
+                let y = (clientY - rect.top) * scaleY;
+                
+                x = Math.max(0, Math.min(this.canvasB.width, x));
+                y = Math.max(0, Math.min(this.canvasB.height, y));
+                
+                return { x, y };
+            },
+
+            clearSignatureB() {
+                if (!this.ctxB || !this.canvasB) return;
+                this.ctxB.clearRect(0, 0, this.canvasB.width, this.canvasB.height);
+                this.signatureB = null;
+                this.hasDrawingB = false;
+                this.drawPlaceholderB();
+            },
+
+            saveSignatureB() {
+                if (!this.ctxB || !this.canvasB) return;
+                
+                // 检测是否有笔迹
+                const imageData = this.ctxB.getImageData(0, 0, this.canvasB.width, this.canvasB.height);
+                const data = imageData.data;
+                let hasPixel = false;
+                
+                for (let i = 3; i < data.length; i += 4) {
+                    if (data[i] > 10) { 
+                        hasPixel = true; 
+                        break; 
+                    }
+                }
+                
+                if (!hasPixel) {
+                    alert('请先手写签名');
+                    return;
+                }
+                
+                this.signatureB = this.canvasB.toDataURL('image/png');
+                this.hasDrawingB = true;
+            },
+
+            submitReceipt() {
+                if (!this.signatureB) {
+                    alert('请先确认签名');
+                    return;
+                }
+                
+                this.receiptSubmitted = true;
+            }
+        },
+        watch: {
+            // 当通过链接生成 activeReceiptFile 时，重置签名状态
+            activeReceiptFile() {
+                this.receiptSubmitted = false;
+                this.signatureB = null;
+                this.$nextTick(() => {
+                    if (this.canvasB) {
+                        this.clearSignatureB();
+                    } else {
+                        this.initCanvasB();
+                    }
+                });
+            }
+        }
+    });
+})();
+</script>
+</body>
+</html>
